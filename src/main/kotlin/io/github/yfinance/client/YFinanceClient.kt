@@ -32,7 +32,7 @@ class YFinanceClient(
         isLenient = true
     }
 
-    private val client = HttpClient(CIO) {
+    internal val client = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(json)
         }
