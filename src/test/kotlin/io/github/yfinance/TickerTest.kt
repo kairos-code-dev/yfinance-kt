@@ -604,4 +604,274 @@ class TickerTest {
             }
         }
     }
+
+    @Test
+    fun `test get options expiration dates for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.options()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val expirations = result.data
+                assertNotNull(expirations)
+                assertTrue(expirations.isNotEmpty(), "Should have option expirations")
+
+                println("Found ${expirations.size} option expiration dates")
+                expirations.take(5).forEach { exp ->
+                    val instant = kotlinx.datetime.Instant.fromEpochSeconds(exp)
+                    println("  Expiration: $instant")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get option chain for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+
+        // First get available expirations
+        val expirations = ticker.options()
+        assertTrue(expirations.isSuccess(), "Expected successful result for expirations")
+
+        val expList = (expirations as YFinanceResult.Success).data
+        assertTrue(expList.isNotEmpty(), "Should have option expirations")
+
+        // Get option chain for first expiration
+        val expiration = expList.first()
+        val result = ticker.optionChain(expiration)
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val chain = result.data
+                assertNotNull(chain)
+                assertTrue(chain.symbol == "AAPL", "Expected symbol to be AAPL")
+                assertTrue(chain.expirationDate == expiration, "Expected expiration to match")
+
+                println("Option chain for expiration ${kotlinx.datetime.Instant.fromEpochSeconds(expiration)}")
+                println("  Calls: ${chain.calls.size}")
+                println("  Puts: ${chain.puts.size}")
+
+                if (chain.calls.isNotEmpty()) {
+                    val call = chain.calls.first()
+                    println("  Sample call:")
+                    println("    Strike: ${call.strike}")
+                    println("    Last Price: ${call.lastPrice}")
+                    println("    Volume: ${call.volume}")
+                    println("    Open Interest: ${call.openInterest}")
+                    println("    Implied Volatility: ${call.impliedVolatility}")
+                }
+
+                val strikes = chain.getAllStrikes()
+                println("  Available strikes: ${strikes.size}")
+
+                val itmCalls = chain.getInTheMoneyCall()
+                val itmPuts = chain.getInTheMoneyPuts()
+                println("  ITM calls: ${itmCalls.size}, ITM puts: ${itmPuts.size}")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get fast info for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.fastInfo()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val info = result.data
+                assertNotNull(info)
+                assertTrue(info.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Fast Info for AAPL:")
+                println("  Last Price: ${info.lastPrice}")
+                println("  Open: ${info.open}")
+                println("  Day High: ${info.dayHigh}")
+                println("  Day Low: ${info.dayLow}")
+                println("  Previous Close: ${info.previousClose}")
+                println("  Market Cap: ${info.marketCap}")
+                println("  Volume: ${info.volume}")
+                println("  52W High: ${info.fiftyTwoWeekHigh}")
+                println("  52W Low: ${info.fiftyTwoWeekLow}")
+                println("  Shares Outstanding: ${info.shares}")
+                println("  Currency: ${info.currency}")
+
+                // Test helper methods
+                val dayRange = info.getDayRange()
+                if (dayRange != null) {
+                    println("  Day Range: ${dayRange.first} - ${dayRange.second}")
+                }
+
+                val priceChange = info.getPriceChange()
+                val percentChange = info.getPercentChange()
+                println("  Price Change: $priceChange (${percentChange}%)")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get sustainability for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.sustainability()
+
+        // Sustainability data may not be available for all tickers
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Sustainability/ESG for AAPL:")
+                println("  Total ESG Score: ${data.totalEsg}")
+                println("  Environment Score: ${data.environmentScore}")
+                println("  Social Score: ${data.socialScore}")
+                println("  Governance Score: ${data.governanceScore}")
+                println("  Controversy Level: ${data.controversyLevel}")
+                println("  ESG Performance: ${data.esgPerformance}")
+                println("  Percentile: ${data.percentile}")
+
+                println("  Has High Controversy: ${data.hasHighControversy()}")
+                println("  Rating Category: ${data.getRatingCategory()}")
+            }
+            is YFinanceResult.Error -> {
+                // ESG data might not be available, which is acceptable
+                println("ESG data not available: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get capital gains for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.capitalGains()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Capital Gains for AAPL:")
+                println("  Total distributions: ${data.gains.size}")
+
+                if (data.gains.isNotEmpty()) {
+                    val sorted = data.getSortedGains()
+                    println("  Latest gains:")
+                    sorted.take(5).forEach { gain ->
+                        println("    ${gain.getInstant()}: ${gain.amount}")
+                    }
+
+                    val total = data.getTotalAmount()
+                    println("  Total amount: $total")
+                } else {
+                    println("  No capital gains distributions found")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get shares outstanding for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.shares()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Shares Outstanding for AAPL:")
+                println("  Data points: ${data.data.size}")
+
+                val latest = data.getLatestShares()
+                println("  Latest shares outstanding: $latest")
+
+                if (data.data.size > 1) {
+                    val growth = data.getShareGrowth()
+                    println("  Share growth over time:")
+                    growth.forEach { (timestamp, growthPercent) ->
+                        val instant = kotlinx.datetime.Instant.fromEpochSeconds(timestamp)
+                        println("    $instant: ${String.format("%.2f", growthPercent)}%")
+                    }
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test option contract helper methods`() = runBlocking {
+        val ticker = Ticker("AAPL")
+
+        // Get option chain
+        val expirations = ticker.options()
+        assertTrue(expirations.isSuccess(), "Expected successful result")
+
+        val expList = (expirations as YFinanceResult.Success).data
+        assertTrue(expList.isNotEmpty(), "Should have expirations")
+
+        val result = ticker.optionChain(expList.first())
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val chain = result.data
+
+                // Test option contract methods
+                if (chain.calls.isNotEmpty()) {
+                    val call = chain.calls.first()
+
+                    // Test expiration instant
+                    val expInstant = call.getExpirationInstant()
+                    assertNotNull(expInstant)
+                    println("Expiration: $expInstant")
+
+                    // Test last trade instant
+                    val lastTradeInstant = call.getLastTradeInstant()
+                    println("Last Trade: $lastTradeInstant")
+
+                    // Test bid-ask spread
+                    val spread = call.getBidAskSpread()
+                    println("Bid-Ask Spread: $spread")
+                }
+
+                // Test chain methods
+                val strike = chain.getAllStrikes().firstOrNull()
+                if (strike != null) {
+                    val callAtStrike = chain.getCall(strike)
+                    val putAtStrike = chain.getPut(strike)
+                    println("Options at strike $strike:")
+                    println("  Call: ${callAtStrike?.lastPrice}")
+                    println("  Put: ${putAtStrike?.lastPrice}")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
 }

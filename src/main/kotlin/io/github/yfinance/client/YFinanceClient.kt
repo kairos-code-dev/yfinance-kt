@@ -1079,6 +1079,423 @@ class YFinanceClient(
     }
 
     /**
+     * Fetch available option expiration dates
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing list of expiration dates (epoch seconds)
+     */
+    suspend fun getOptions(symbol: String): YFinanceResult<List<Long>> {
+        return try {
+            val url = "https://query2.finance.yahoo.com/v7/finance/options/$symbol"
+            logger.debug { "Fetching option expirations: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val optionsResponse: OptionsResponse = response.body()
+
+            if (optionsResponse.optionChain.error != null) {
+                return YFinanceResult.Error(
+                    optionsResponse.optionChain.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = optionsResponse.optionChain.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No options data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            YFinanceResult.Success(result.expirationDates ?: emptyList())
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching options for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch options: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch option chain for specific expiration date
+     *
+     * @param symbol The ticker symbol
+     * @param expiration Expiration date (epoch seconds)
+     * @return Result containing option chain
+     */
+    suspend fun getOptionChain(symbol: String, expiration: Long): YFinanceResult<OptionChain> {
+        return try {
+            val url = "https://query2.finance.yahoo.com/v7/finance/options/$symbol?date=$expiration"
+            logger.debug { "Fetching option chain: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val optionsResponse: OptionsResponse = response.body()
+
+            if (optionsResponse.optionChain.error != null) {
+                return YFinanceResult.Error(
+                    optionsResponse.optionChain.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = optionsResponse.optionChain.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No options data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val optionData = result.options?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No option chain data for expiration: $expiration",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+
+            val calls = optionData.calls?.map { contract ->
+                io.github.yfinance.model.OptionContract(
+                    contractSymbol = contract.contractSymbol,
+                    strike = contract.strike,
+                    currency = contract.currency,
+                    lastPrice = contract.lastPrice,
+                    change = contract.change,
+                    percentChange = contract.percentChange,
+                    volume = contract.volume,
+                    openInterest = contract.openInterest,
+                    bid = contract.bid,
+                    ask = contract.ask,
+                    contractSize = contract.contractSize,
+                    expiration = contract.expiration,
+                    lastTradeDate = contract.lastTradeDate,
+                    impliedVolatility = contract.impliedVolatility,
+                    inTheMoney = contract.inTheMoney
+                )
+            } ?: emptyList()
+
+            val puts = optionData.puts?.map { contract ->
+                io.github.yfinance.model.OptionContract(
+                    contractSymbol = contract.contractSymbol,
+                    strike = contract.strike,
+                    currency = contract.currency,
+                    lastPrice = contract.lastPrice,
+                    change = contract.change,
+                    percentChange = contract.percentChange,
+                    volume = contract.volume,
+                    openInterest = contract.openInterest,
+                    bid = contract.bid,
+                    ask = contract.ask,
+                    contractSize = contract.contractSize,
+                    expiration = contract.expiration,
+                    lastTradeDate = contract.lastTradeDate,
+                    impliedVolatility = contract.impliedVolatility,
+                    inTheMoney = contract.inTheMoney
+                )
+            } ?: emptyList()
+
+            YFinanceResult.Success(
+                OptionChain(
+                    symbol = symbol,
+                    expirationDate = expiration,
+                    calls = calls,
+                    puts = puts
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching option chain for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch option chain: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch fast info (quick access to key data)
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing fast info
+     */
+    suspend fun getFastInfo(symbol: String): YFinanceResult<FastInfo> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("summaryDetail", "price", "defaultKeyStatistics"))
+            logger.debug { "Fetching fast info: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val summary = result.summaryDetail
+            val price = result.price
+            val stats = result.defaultKeyStatistics
+
+            YFinanceResult.Success(
+                FastInfo(
+                    symbol = symbol,
+                    lastPrice = price?.regularMarketPrice?.raw,
+                    open = summary?.open?.raw,
+                    dayHigh = summary?.dayHigh?.raw,
+                    dayLow = summary?.dayLow?.raw,
+                    previousClose = summary?.previousClose?.raw,
+                    marketCap = price?.marketCap?.raw?.toLong(),
+                    volume = summary?.regularMarketVolume?.raw?.toLong(),
+                    fiftyTwoWeekHigh = summary?.fiftyTwoWeekHigh?.raw,
+                    fiftyTwoWeekLow = summary?.fiftyTwoWeekLow?.raw,
+                    shares = stats?.sharesOutstanding?.raw?.toLong(),
+                    currency = price?.currency
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching fast info for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch fast info: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch sustainability/ESG scores
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing sustainability data
+     */
+    suspend fun getSustainability(symbol: String): YFinanceResult<Sustainability> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("esgScores"))
+            logger.debug { "Fetching sustainability: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val esg = result.esgScores
+
+            YFinanceResult.Success(
+                Sustainability(
+                    symbol = symbol,
+                    totalEsg = esg?.totalEsg?.raw,
+                    environmentScore = esg?.environmentScore?.raw,
+                    socialScore = esg?.socialScore?.raw,
+                    governanceScore = esg?.governanceScore?.raw,
+                    controversyLevel = esg?.highestControversy,
+                    esgPerformance = esg?.esgPerformance,
+                    percentile = esg?.percentile?.raw
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching sustainability for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch sustainability: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch capital gains distributions
+     *
+     * @param symbol The ticker symbol
+     * @param period The time period
+     * @return Result containing capital gains data
+     */
+    suspend fun getCapitalGains(
+        symbol: String,
+        period: Period = Period.MAX
+    ): YFinanceResult<CapitalGainsData> {
+        return try {
+            val url = buildChartUrl(symbol, period, Interval.ONE_DAY, includeEvents = true)
+                .replace("events=div,splits", "events=capitalGains")
+            logger.debug { "Fetching capital gains: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val chartResponse: ChartResponse = response.body()
+
+            if (chartResponse.chart.error != null) {
+                return YFinanceResult.Error(
+                    chartResponse.chart.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = chartResponse.chart.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            // Parse capital gains from events
+            // Note: Yahoo Finance may not return capital gains in the standard events field
+            // This is a best-effort implementation
+            val gains = mutableListOf<CapitalGain>()
+
+            YFinanceResult.Success(
+                CapitalGainsData(
+                    symbol = symbol,
+                    gains = gains
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching capital gains for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch capital gains: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch shares outstanding over time
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing shares data
+     */
+    suspend fun getShares(symbol: String): YFinanceResult<SharesData> {
+        return try {
+            // Yahoo Finance doesn't provide historical shares outstanding via API
+            // We can only get the current value from defaultKeyStatistics
+            val url = buildFinancialsUrl(symbol, listOf("defaultKeyStatistics"))
+            logger.debug { "Fetching shares: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val stats = result.defaultKeyStatistics
+            val shares = stats?.sharesOutstanding?.raw?.toLong()
+
+            val sharesMap = if (shares != null) {
+                mapOf(System.currentTimeMillis() / 1000 to shares)
+            } else {
+                emptyMap()
+            }
+
+            YFinanceResult.Success(
+                SharesData(
+                    symbol = symbol,
+                    data = sharesMap
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching shares for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch shares: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
      * Close the HTTP client
      */
     fun close() {

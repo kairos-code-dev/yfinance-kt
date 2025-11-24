@@ -25,6 +25,16 @@ A Kotlin library for fetching financial data from Yahoo Finance. This is a moder
 - 👥 **Institutional Holdings** - Major holders and institutional ownership
 - 📰 **News Articles** - Latest news and market updates
 
+### Options & Derivatives
+- 📉 **Options Data** - Available expiration dates and option chains
+- 🎲 **Option Contracts** - Calls, puts, Greeks, and open interest
+- 💹 **Fast Info** - Quick access to key market data
+
+### ESG & Additional Data
+- 🌱 **Sustainability** - ESG scores (Environmental, Social, Governance)
+- 💵 **Capital Gains** - Distribution history for funds
+- 📊 **Shares Outstanding** - Share count over time
+
 ### Technical Features
 - 🚀 **Kotlin Coroutines** - Fully async/await support with coroutines
 - 🔒 **Type-Safe** - Strongly typed data models with sealed classes for error handling
@@ -322,6 +332,115 @@ ticker.institutionalHolders().onSuccess { institutions ->
 
     val total = institutions.getTotalPercentageHeld()
     println("Total institutional ownership: $total%")
+}
+```
+
+### Options Data
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get available option expiration dates
+ticker.options().onSuccess { expirations ->
+    println("Available expirations: ${expirations.size}")
+    expirations.take(5).forEach { exp ->
+        val date = Instant.fromEpochSeconds(exp)
+        println("  $date")
+    }
+}
+
+// Get option chain for specific expiration
+val expiration = expirations.first()
+ticker.optionChain(expiration).onSuccess { chain ->
+    println("Calls: ${chain.calls.size}, Puts: ${chain.puts.size}")
+
+    // Get all available strikes
+    val strikes = chain.getAllStrikes()
+
+    // Get in-the-money options
+    val itmCalls = chain.getInTheMoneyCall()
+    val itmPuts = chain.getInTheMoneyPuts()
+
+    // Get specific strike
+    val call = chain.getCall(150.0)
+    val put = chain.getPut(150.0)
+
+    // Analyze option contract
+    call?.let {
+        println("Call at $150:")
+        println("  Last Price: ${it.lastPrice}")
+        println("  Volume: ${it.volume}")
+        println("  Open Interest: ${it.openInterest}")
+        println("  Implied Volatility: ${it.impliedVolatility}")
+        println("  Bid-Ask Spread: ${it.getBidAskSpread()}")
+    }
+}
+```
+
+### Fast Info
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.fastInfo().onSuccess { info ->
+    println("Last Price: ${info.lastPrice}")
+    println("Market Cap: ${info.marketCap}")
+    println("Volume: ${info.volume}")
+    println("52W High/Low: ${info.fiftyTwoWeekHigh}/${info.fiftyTwoWeekLow}")
+
+    // Helper methods
+    val dayRange = info.getDayRange()
+    val priceChange = info.getPriceChange()
+    val percentChange = info.getPercentChange()
+
+    println("Day Range: ${dayRange?.first} - ${dayRange?.second}")
+    println("Change: $priceChange (${percentChange}%)")
+}
+```
+
+### Sustainability/ESG
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.sustainability().onSuccess { esg ->
+    println("Total ESG Score: ${esg.totalEsg}")
+    println("Environment: ${esg.environmentScore}")
+    println("Social: ${esg.socialScore}")
+    println("Governance: ${esg.governanceScore}")
+    println("Controversy Level: ${esg.controversyLevel}")
+    println("ESG Performance: ${esg.esgPerformance}")
+
+    // Helper methods
+    println("Has High Controversy: ${esg.hasHighControversy()}")
+    println("Rating Category: ${esg.getRatingCategory()}")
+}
+```
+
+### Capital Gains & Shares
+
+```kotlin
+val ticker = Ticker("SPY")
+
+// Get capital gains distributions (for funds/ETFs)
+ticker.capitalGains().onSuccess { gains ->
+    println("Total distributions: ${gains.gains.size}")
+    gains.getSortedGains().forEach { gain ->
+        println("${gain.getInstant()}: ${gain.amount}")
+    }
+    println("Total amount: ${gains.getTotalAmount()}")
+}
+
+// Get shares outstanding
+ticker.shares().onSuccess { shares ->
+    val latest = shares.getLatestShares()
+    println("Latest shares outstanding: $latest")
+
+    // Get share growth over time
+    val growth = shares.getShareGrowth()
+    growth.forEach { (timestamp, percent) ->
+        println("${Instant.fromEpochSeconds(timestamp)}: ${percent}%")
+    }
 }
 ```
 

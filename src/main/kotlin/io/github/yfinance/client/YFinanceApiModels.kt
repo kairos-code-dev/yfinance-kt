@@ -130,7 +130,8 @@ internal data class QuoteSummaryResult(
     val majorHoldersBreakdown: MajorHoldersBreakdown? = null,
     val institutionOwnership: InstitutionOwnership? = null,
     val earningsHistory: EarningsHistory? = null,
-    val earnings: EarningsData? = null
+    val earnings: EarningsData? = null,
+    val esgScores: EsgScores? = null
 )
 
 @Serializable
@@ -464,4 +465,95 @@ internal data class QuarterlyFinancial(
     val date: String,
     val revenue: RawValue? = null,
     val earnings: RawValue? = null
+)
+
+// Options models
+@Serializable
+internal data class OptionsResponse(
+    val optionChain: OptionsChainData
+)
+
+@Serializable
+internal data class OptionsChainData(
+    val result: List<OptionsResult>? = null,
+    val error: ApiError? = null
+)
+
+@Serializable
+internal data class OptionsResult(
+    val underlyingSymbol: String,
+    val expirationDates: List<Long>? = null,
+    val strikes: List<Double>? = null,
+    val hasMiniOptions: Boolean? = null,
+    val quote: OptionQuote? = null,
+    val options: List<OptionData>? = null
+)
+
+@Serializable
+internal data class OptionQuote(
+    val regularMarketPrice: Double? = null,
+    val currency: String? = null
+)
+
+@Serializable
+internal data class OptionData(
+    val expirationDate: Long,
+    val hasMiniOptions: Boolean? = null,
+    val calls: List<OptionContractData>? = null,
+    val puts: List<OptionContractData>? = null
+)
+
+@Serializable
+internal data class OptionContractData(
+    val contractSymbol: String,
+    val strike: Double,
+    val currency: String,
+    val lastPrice: Double? = null,
+    val change: Double? = null,
+    val percentChange: Double? = null,
+    val volume: Long? = null,
+    val openInterest: Long? = null,
+    val bid: Double? = null,
+    val ask: Double? = null,
+    val contractSize: String? = null,
+    val expiration: Long,
+    val lastTradeDate: Long? = null,
+    val impliedVolatility: Double? = null,
+    val inTheMoney: Boolean? = null
+)
+
+// Sustainability/ESG models
+@Serializable
+internal data class EsgScores(
+    val totalEsg: RawValue? = null,
+    val environmentScore: RawValue? = null,
+    val socialScore: RawValue? = null,
+    val governanceScore: RawValue? = null,
+    val ratingYear: Int? = null,
+    val ratingMonth: Int? = null,
+    val highestControversy: Int? = null,
+    val peerCount: Int? = null,
+    val esgPerformance: String? = null,
+    val peerGroup: String? = null,
+    val relatedControversy: List<String>? = null,
+    val peerEsgScorePerformance: RawValue? = null,
+    val peerGovernancePerformance: RawValue? = null,
+    val peerSocialPerformance: RawValue? = null,
+    val peerEnvironmentPerformance: RawValue? = null,
+    val percentile: RawValue? = null
+)
+
+// Capital gains in Events (already have dividends and splits)
+@Serializable
+internal data class CapitalGainEvent(
+    val amount: Double,
+    val date: Long
+)
+
+// Update Events to include capital gains
+@Serializable
+internal data class EventsWithCapitalGains(
+    val dividends: Map<String, DividendEvent>? = null,
+    val splits: Map<String, SplitEvent>? = null,
+    val capitalGains: Map<String, CapitalGainEvent>? = null
 )
