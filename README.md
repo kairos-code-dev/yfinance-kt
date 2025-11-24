@@ -7,11 +7,25 @@ A Kotlin library for fetching financial data from Yahoo Finance. This is a moder
 
 ## Features
 
+### Core Data
 - 📈 **Historical Price Data** - Fetch OHLCV data for any period and interval
 - 📊 **Company Information** - Get comprehensive ticker information including fundamentals
 - 💰 **Dividends & Splits** - Access dividend and stock split history
 - 📅 **Corporate Actions** - Combined view of dividends and splits
 - 📆 **Calendar Events** - Upcoming earnings dates and dividend schedules
+
+### Financial Statements
+- 📄 **Income Statements** - Annual, quarterly, and trailing income statements
+- 💼 **Balance Sheets** - Complete balance sheet data
+- 💵 **Cash Flow Statements** - Operating, investing, and financing cash flows
+
+### Analyst Coverage & Ownership
+- 📊 **Earnings Data** - Historical earnings, EPS estimates, and actuals
+- 🎯 **Analyst Recommendations** - Upgrades, downgrades, and price targets
+- 👥 **Institutional Holdings** - Major holders and institutional ownership
+- 📰 **News Articles** - Latest news and market updates
+
+### Technical Features
 - 🚀 **Kotlin Coroutines** - Fully async/await support with coroutines
 - 🔒 **Type-Safe** - Strongly typed data models with sealed classes for error handling
 - 🎯 **DSL-Style API** - Clean and intuitive Kotlin DSL
@@ -202,6 +216,112 @@ ticker.historyByRange(startTime, endTime, Interval.ONE_DAY).onSuccess { data ->
     // Helper methods for data manipulation
     val sortedQuotes = data.getSortedQuotes() // Oldest first
     val sortedDesc = data.getSortedQuotesDesc() // Newest first
+}
+```
+
+### Financial Statements
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get annual income statement
+ticker.incomeStatement(Frequency.ANNUAL).onSuccess { statement ->
+    val latest = statement.getLatestData()
+    if (latest != null) {
+        println("Period: ${latest.first}")
+        println("Total Revenue: ${latest.second["totalRevenue"]}")
+        println("Net Income: ${latest.second["netIncome"]}")
+        println("Gross Profit: ${latest.second["grossProfit"]}")
+    }
+}
+
+// Get quarterly balance sheet
+ticker.balanceSheet(Frequency.QUARTERLY).onSuccess { balanceSheet ->
+    val periods = balanceSheet.getAvailablePeriods()
+    println("Available periods: $periods")
+
+    // Get specific line item across all periods
+    val totalAssets = balanceSheet.getLineItem("totalAssets")
+    totalAssets.forEach { (period, value) ->
+        println("$period: Total Assets = $$value")
+    }
+}
+
+// Get cash flow statement
+ticker.cashFlow(Frequency.ANNUAL).onSuccess { cashFlow ->
+    val latest = cashFlow.getLatestData()
+    if (latest != null) {
+        println("Operating Cash Flow: ${latest.second["operatingCashFlow"]}")
+        println("Free Cash Flow: ${latest.second["freeCashFlow"]}")
+    }
+}
+```
+
+### Earnings Data
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get full earnings data
+ticker.earnings().onSuccess { earnings ->
+    println("Current Quarter Estimate: ${earnings.currentQuarterEstimate}")
+
+    // Latest quarterly earnings
+    val latest = earnings.getLatestEarnings()
+    println("Latest EPS: ${latest?.actual} (estimate: ${latest?.estimate})")
+
+    // Revenue growth year-over-year
+    val revenueGrowth = earnings.getYearlyRevenueGrowth()
+    revenueGrowth.forEach { (year, growth) ->
+        println("$year: ${String.format("%.2f", growth)}% growth")
+    }
+}
+
+// Get earnings history
+ticker.earningsHistory().onSuccess { history ->
+    val sorted = history.getSortedHistory()
+    sorted.take(4).forEach { item ->
+        val beat = if (item.beatEstimates()) "BEAT" else "MISS"
+        println("${item.quarter}: EPS ${item.epsActual} ($beat)")
+    }
+
+    println("Total beats: ${history.getBeatsCount()}")
+    println("Total misses: ${history.getMissesCount()}")
+}
+```
+
+### Analyst Recommendations & Holdings
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get analyst recommendations
+ticker.recommendations().onSuccess { recommendations ->
+    val sorted = recommendations.getSortedRecommendations()
+    sorted.take(5).forEach { rec ->
+        println("${rec.firm}: ${rec.toGrade} (${rec.action})")
+    }
+
+    val summary = recommendations.getSummary()
+    println("Recommendation summary: $summary")
+}
+
+// Get major holders
+ticker.majorHolders().onSuccess { holders ->
+    println("Insiders: ${holders.insidersPercent}%")
+    println("Institutions: ${holders.institutionsPercent}%")
+    println("Number of institutions: ${holders.institutionsCount}")
+}
+
+// Get institutional holders
+ticker.institutionalHolders().onSuccess { institutions ->
+    val topHolders = institutions.getTopHolders(10)
+    topHolders.forEach { holder ->
+        println("${holder.organization}: ${holder.percentHeld}%")
+    }
+
+    val total = institutions.getTotalPercentageHeld()
+    println("Total institutional ownership: $total%")
 }
 ```
 
