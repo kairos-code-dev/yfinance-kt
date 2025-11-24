@@ -10,6 +10,8 @@ A Kotlin library for fetching financial data from Yahoo Finance. This is a moder
 - 📈 **Historical Price Data** - Fetch OHLCV data for any period and interval
 - 📊 **Company Information** - Get comprehensive ticker information including fundamentals
 - 💰 **Dividends & Splits** - Access dividend and stock split history
+- 📅 **Corporate Actions** - Combined view of dividends and splits
+- 📆 **Calendar Events** - Upcoming earnings dates and dividend schedules
 - 🚀 **Kotlin Coroutines** - Fully async/await support with coroutines
 - 🔒 **Type-Safe** - Strongly typed data models with sealed classes for error handling
 - 🎯 **DSL-Style API** - Clean and intuitive Kotlin DSL
@@ -143,6 +145,66 @@ ticker.splits().onSuccess { splitData ->
 }
 ```
 
+### Corporate Actions (Combined Dividends & Splits)
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.actions(Period.ONE_YEAR).onSuccess { actionData ->
+    // Get all actions sorted by date
+    val allActions = actionData.getAllActions()
+
+    allActions.forEach { action ->
+        when (action) {
+            is Action.DividendAction ->
+                println("${action.getInstant()}: Dividend $${action.amount}")
+            is Action.SplitAction ->
+                println("${action.getInstant()}: Split ${action.ratio}")
+        }
+    }
+
+    // Or get them separately
+    val dividends = actionData.getDividendActions()
+    val splits = actionData.getSplitActions()
+    println("Total: ${dividends.size} dividends, ${splits.size} splits")
+}
+```
+
+### Calendar Events
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.calendar().onSuccess { calendar ->
+    if (calendar.hasEarnings()) {
+        println("Next earnings: ${calendar.getEarningsInstant()}")
+    }
+
+    if (calendar.hasDividendInfo()) {
+        println("Ex-dividend date: ${calendar.getExDividendInstant()}")
+        println("Dividend payment date: ${calendar.getDividendInstant()}")
+    }
+}
+```
+
+### History by Date Range
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get data for a specific date range
+val startTime = System.currentTimeMillis() / 1000 - (60 * 24 * 60 * 60) // 60 days ago
+val endTime = System.currentTimeMillis() / 1000
+
+ticker.historyByRange(startTime, endTime, Interval.ONE_DAY).onSuccess { data ->
+    println("Got ${data.quotes.size} quotes for the specified range")
+
+    // Helper methods for data manipulation
+    val sortedQuotes = data.getSortedQuotes() // Oldest first
+    val sortedDesc = data.getSortedQuotesDesc() // Newest first
+}
+```
+
 ### DSL-Style Usage
 
 ```kotlin
@@ -229,6 +291,11 @@ src/main/kotlin/io/github/yfinance/
 │   ├── TickerInfo.kt
 │   ├── Dividend.kt
 │   ├── Split.kt
+│   ├── Action.kt               # Corporate actions (NEW)
+│   ├── Calendar.kt             # Calendar events (NEW)
+│   ├── Financial.kt            # Financial statements (NEW)
+│   ├── News.kt                 # News articles (NEW)
+│   ├── Recommendation.kt       # Analyst recommendations (NEW)
 │   └── YFinanceResult.kt
 ├── client/                      # HTTP client
 │   ├── YFinanceClient.kt

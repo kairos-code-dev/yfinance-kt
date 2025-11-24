@@ -66,6 +66,25 @@ class Ticker(
     }
 
     /**
+     * Get all corporate actions (dividends and splits combined)
+     *
+     * @param period The time period to fetch (default: max available)
+     * @return Result containing action data
+     */
+    suspend fun actions(period: Period = Period.MAX): YFinanceResult<ActionData> {
+        return client.getActions(symbol, period)
+    }
+
+    /**
+     * Get calendar events (earnings dates, dividend dates)
+     *
+     * @return Result containing calendar data
+     */
+    suspend fun calendar(): YFinanceResult<CalendarData> {
+        return client.getCalendar(symbol)
+    }
+
+    /**
      * Extension function to get history with custom date range
      * This is a convenience method that uses the max period and filters the results
      *

@@ -271,6 +271,80 @@ class YFinanceClient(
         }
     }
 
+    /**
+     * Fetch all corporate actions (dividends and splits) for a symbol
+     *
+     * @param symbol The ticker symbol
+     * @param period The time period
+     * @return Result containing action data
+     */
+    suspend fun getActions(
+        symbol: String,
+        period: Period = Period.MAX
+    ): YFinanceResult<ActionData> {
+        return try {
+            val url = buildChartUrl(symbol, period, Interval.ONE_DAY, includeEvents = true)
+            logger.debug { "Fetching actions: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val chartResponse: ChartResponse = response.body()
+
+            if (chartResponse.chart.error != null) {
+                return YFinanceResult.Error(
+                    chartResponse.chart.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = chartResponse.chart.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val dividends = result.events?.dividends?.values?.map { event ->
+                Dividend(
+                    date = event.date,
+                    amount = event.amount
+                )
+            } ?: emptyList()
+
+            val splits = result.events?.splits?.values?.map { event ->
+                Split(
+                    date = event.date,
+                    ratio = event.numerator / event.denominator
+                )
+            } ?: emptyList()
+
+            YFinanceResult.Success(
+                ActionData(
+                    symbol = symbol,
+                    dividends = dividends,
+                    splits = splits
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching actions for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch actions: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
     private fun buildChartUrl(
         symbol: String,
         period: Period,
@@ -343,6 +417,68 @@ class YFinanceClient(
         } ?: emptyList()
 
         return SplitData(symbol = symbol, splits = splits)
+    }
+
+    /**
+     * Fetch calendar events for a symbol
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing calendar data
+     */
+    suspend fun getCalendar(symbol: String): YFinanceResult<CalendarData> {
+        return try {
+            val url = buildQuoteSummaryUrl(symbol)
+            logger.debug { "Fetching calendar: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val calendar = result.calendarEvents
+            val earningsDate = calendar?.earnings?.earningsDate?.firstOrNull()?.raw?.toLong()
+            val exDivDate = calendar?.exDividendDate?.raw?.toLong()
+            val divDate = calendar?.dividendDate?.raw?.toLong()
+
+            YFinanceResult.Success(
+                CalendarData(
+                    symbol = symbol,
+                    earnings = earningsDate,
+                    exDividendDate = exDivDate,
+                    dividendDate = divDate
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching calendar for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch calendar: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
     }
 
     private fun parseTickerInfo(symbol: String, result: QuoteSummaryResult): TickerInfo {
