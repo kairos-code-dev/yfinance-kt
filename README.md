@@ -7,14 +7,36 @@ A Kotlin library for fetching financial data from Yahoo Finance. This is a moder
 
 ## Features
 
+### Core Data
 - 📈 **Historical Price Data** - Fetch OHLCV data for any period and interval
 - 📊 **Company Information** - Get comprehensive ticker information including fundamentals
-- 💰 **Dividends & Splits** - Access dividend and stock split history
+- 💰 **Corporate Actions** - Access dividends, splits, and capital gains
+- 📰 **News & Analysis** - Get latest news and analyst recommendations
+- 📅 **Calendar Events** - Earnings dates, ex-dividend dates, and more
+
+### Financial Statements
+- 💼 **Income Statement** - Annual, quarterly, and TTM data
+- 📋 **Balance Sheet** - Complete balance sheet data
+- 💵 **Cash Flow** - Operating, investing, and financing cash flows
+- 📊 **Earnings** - Historical and estimated earnings data
+
+### Ownership & Analysis
+- 🏢 **Holders** - Institutional, mutual fund, and insider holdings
+- 👥 **Insider Transactions** - Track insider buying and selling
+- 🎯 **Analyst Ratings** - Recommendations, price targets, and upgrades/downgrades
+- 🌱 **ESG/Sustainability** - Environmental, social, and governance scores
+
+### Options Data
+- 📈 **Options Chain** - Complete options data for all expirations
+- 💹 **Implied Volatility** - Option Greeks and analytics
+
+### Advanced Features
 - 🚀 **Kotlin Coroutines** - Fully async/await support with coroutines
 - 🔒 **Type-Safe** - Strongly typed data models with sealed classes for error handling
 - 🎯 **DSL-Style API** - Clean and intuitive Kotlin DSL
-- 🌐 **Ktor Client** - Modern HTTP client with connection pooling and retry logic
-- ⚡ **Lightweight** - Minimal dependencies, fast and efficient
+- 🌐 **Ktor Client** - Modern HTTP client with connection pooling
+- ⚡ **Multi-Ticker Support** - Download data for multiple tickers simultaneously
+- 📦 **Comprehensive Tests** - Full test coverage matching original yfinance
 
 ## Installation
 
@@ -37,12 +59,12 @@ dependencies {
 ## Quick Start
 
 ```kotlin
-import io.github.yfinance.Ticker
+import io.github.yfinance.*
 import io.github.yfinance.model.*
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
-    // Create a ticker instance
+    // Basic usage with Ticker
     val ticker = Ticker("AAPL")
 
     // Get historical data
@@ -56,6 +78,25 @@ fun main() = runBlocking {
         println("Company: ${info.longName}")
         println("Sector: ${info.sector}")
         println("Market Cap: ${info.marketCap}")
+    }
+
+    // Extended functionality with TickerExtended
+    val extTicker = TickerExtended("AAPL")
+
+    // Get financial statements
+    extTicker.incomeStmt().onSuccess { stmt ->
+        println("Income statement data available")
+    }
+
+    // Get analyst recommendations
+    extTicker.recommendations().onSuccess { recs ->
+        println("Latest recommendations: ${recs.recommendations.size}")
+    }
+
+    // Download multiple tickers
+    val data = download("AAPL", "GOOGL", "MSFT", period = Period.ONE_MONTH)
+    data.forEach { (symbol, result) ->
+        result.onSuccess { println("$symbol: ${it.quotes.size} quotes") }
     }
 }
 ```
