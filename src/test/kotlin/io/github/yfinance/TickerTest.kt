@@ -332,4 +332,276 @@ class TickerTest {
             }
         }
     }
+
+    @Test
+    fun `test get income statement for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.incomeStatement(Frequency.ANNUAL)
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                val periods = data.getAvailablePeriods()
+                println("Found ${periods.size} annual periods for income statement")
+
+                val latest = data.getLatestData()
+                if (latest != null) {
+                    println("Latest period: ${latest.first}")
+                    println("  Total Revenue: ${latest.second["totalRevenue"]}")
+                    println("  Net Income: ${latest.second["netIncome"]}")
+
+                    assertNotNull(latest.second["totalRevenue"], "Total revenue should be present")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get balance sheet for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.balanceSheet(Frequency.ANNUAL)
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                val periods = data.getAvailablePeriods()
+                println("Found ${periods.size} annual periods for balance sheet")
+
+                val latest = data.getLatestData()
+                if (latest != null) {
+                    println("Latest period: ${latest.first}")
+                    println("  Total Assets: ${latest.second["totalAssets"]}")
+                    println("  Total Liabilities: ${latest.second["totalLiabilities"]}")
+                    println("  Stockholders Equity: ${latest.second["stockholdersEquity"]}")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get cash flow for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.cashFlow(Frequency.ANNUAL)
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                val periods = data.getAvailablePeriods()
+                println("Found ${periods.size} annual periods for cash flow")
+
+                val latest = data.getLatestData()
+                if (latest != null) {
+                    println("Latest period: ${latest.first}")
+                    println("  Operating Cash Flow: ${latest.second["operatingCashFlow"]}")
+                    println("  Free Cash Flow: ${latest.second["freeCashFlow"]}")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get recommendations for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.recommendations()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Found ${data.recommendations.size} recommendations")
+
+                val sorted = data.getSortedRecommendations()
+                if (sorted.isNotEmpty()) {
+                    val latest = sorted.first()
+                    println("Latest recommendation:")
+                    println("  Firm: ${latest.firm}")
+                    println("  Grade: ${latest.toGrade}")
+                    println("  Action: ${latest.action}")
+                }
+
+                val upgrades = data.getUpgrades()
+                val downgrades = data.getDowngrades()
+                println("Upgrades: ${upgrades.size}, Downgrades: ${downgrades.size}")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get major holders for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.majorHolders()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Major Holders for AAPL:")
+                println("  Insiders: ${data.insidersPercent}%")
+                println("  Institutions: ${data.institutionsPercent}%")
+                println("  Institutions (Float): ${data.institutionsFloatPercent}%")
+                println("  Number of Institutions: ${data.institutionsCount}")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get institutional holders for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.institutionalHolders()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Found ${data.holders.size} institutional holders")
+
+                val topHolders = data.getTopHolders(5)
+                println("Top 5 institutional holders:")
+                topHolders.forEach { holder ->
+                    println("  ${holder.organization}: ${holder.percentHeld}% (${holder.shares} shares)")
+                }
+
+                val totalPercent = data.getTotalPercentageHeld()
+                println("Total institutional ownership: $totalPercent%")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get earnings history for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.earningsHistory()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Found ${data.history.size} earnings periods")
+
+                val sorted = data.getSortedHistory()
+                if (sorted.isNotEmpty()) {
+                    val latest = sorted.first()
+                    println("Latest earnings:")
+                    println("  Quarter: ${latest.quarter}")
+                    println("  EPS Actual: ${latest.epsActual}")
+                    println("  EPS Estimate: ${latest.epsEstimate}")
+                    println("  Surprise: ${latest.surprisePercent}%")
+                }
+
+                val beats = data.getBeatsCount()
+                val misses = data.getMissesCount()
+                println("Beats: $beats, Misses: $misses")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test get full earnings for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.earnings()
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+                assertTrue(data.symbol == "AAPL", "Expected symbol to be AAPL")
+
+                println("Quarterly Earnings: ${data.quarterlyEarnings.size} periods")
+                println("Current Quarter Estimate: ${data.currentQuarterEstimate}")
+
+                val latest = data.getLatestEarnings()
+                if (latest != null) {
+                    println("Latest earnings:")
+                    println("  Date: ${latest.date}")
+                    println("  Actual: ${latest.actual}")
+                    println("  Estimate: ${latest.estimate}")
+                }
+
+                val revenueGrowth = data.getYearlyRevenueGrowth()
+                println("Revenue growth YoY:")
+                revenueGrowth.forEach { (year, growth) ->
+                    println("  $year: ${String.format("%.2f", growth)}%")
+                }
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
+
+    @Test
+    fun `test quarterly income statement for AAPL`() = runBlocking {
+        val ticker = Ticker("AAPL")
+        val result = ticker.incomeStatement(Frequency.QUARTERLY)
+
+        assertTrue(result.isSuccess(), "Expected successful result")
+
+        when (result) {
+            is YFinanceResult.Success -> {
+                val data = result.data
+                assertNotNull(data)
+
+                val periods = data.getAvailablePeriods()
+                println("Found ${periods.size} quarterly periods")
+                assertTrue(periods.isNotEmpty(), "Should have quarterly data")
+            }
+            is YFinanceResult.Error -> {
+                throw AssertionError("Unexpected error: ${result.message}")
+            }
+        }
+    }
 }
