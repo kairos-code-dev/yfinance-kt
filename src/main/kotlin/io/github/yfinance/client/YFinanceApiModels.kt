@@ -118,7 +118,20 @@ internal data class QuoteSummaryResult(
     val summaryDetail: SummaryDetail? = null,
     val defaultKeyStatistics: DefaultKeyStatistics? = null,
     val financialData: FinancialData? = null,
-    val calendarEvents: CalendarEvents? = null
+    val calendarEvents: CalendarEvents? = null,
+    val incomeStatementHistory: IncomeStatementHistory? = null,
+    val incomeStatementHistoryQuarterly: IncomeStatementHistory? = null,
+    val balanceSheetHistory: BalanceSheetHistory? = null,
+    val balanceSheetHistoryQuarterly: BalanceSheetHistory? = null,
+    val cashflowStatementHistory: CashflowStatementHistory? = null,
+    val cashflowStatementHistoryQuarterly: CashflowStatementHistory? = null,
+    val recommendationTrend: RecommendationTrend? = null,
+    val upgradeDowngradeHistory: UpgradeDowngradeHistory? = null,
+    val majorHoldersBreakdown: MajorHoldersBreakdown? = null,
+    val institutionOwnership: InstitutionOwnership? = null,
+    val earningsHistory: EarningsHistory? = null,
+    val earnings: EarningsData? = null,
+    val esgScores: EsgScores? = null
 )
 
 @Serializable
@@ -250,4 +263,297 @@ internal data class RawValue(
 internal data class ApiError(
     val code: String? = null,
     val description: String? = null
+)
+
+// Financial statement models
+@Serializable
+internal data class FinancialStatementItem(
+    val raw: Long? = null,
+    val fmt: String? = null,
+    val longFmt: String? = null
+)
+
+@Serializable
+internal data class FinancialStatementEntry(
+    val endDate: RawValue? = null,
+    val totalRevenue: FinancialStatementItem? = null,
+    val costOfRevenue: FinancialStatementItem? = null,
+    val grossProfit: FinancialStatementItem? = null,
+    val operatingExpense: FinancialStatementItem? = null,
+    val operatingIncome: FinancialStatementItem? = null,
+    val netIncome: FinancialStatementItem? = null,
+    val ebitda: FinancialStatementItem? = null,
+    val incomeBeforeTax: FinancialStatementItem? = null,
+    val incomeTaxExpense: FinancialStatementItem? = null,
+    val interestExpense: FinancialStatementItem? = null,
+    val totalAssets: FinancialStatementItem? = null,
+    val totalLiabilitiesNetMinorityInterest: FinancialStatementItem? = null,
+    val totalEquityGrossMinorityInterest: FinancialStatementItem? = null,
+    val stockholdersEquity: FinancialStatementItem? = null,
+    val totalCapitalization: FinancialStatementItem? = null,
+    val commonStock: FinancialStatementItem? = null,
+    val retainedEarnings: FinancialStatementItem? = null,
+    val totalDebt: FinancialStatementItem? = null,
+    val currentAssets: FinancialStatementItem? = null,
+    val currentLiabilities: FinancialStatementItem? = null,
+    val cashAndCashEquivalents: FinancialStatementItem? = null,
+    val operatingCashFlow: FinancialStatementItem? = null,
+    val investingCashFlow: FinancialStatementItem? = null,
+    val financingCashFlow: FinancialStatementItem? = null,
+    val freeCashFlow: FinancialStatementItem? = null,
+    val capitalExpenditure: FinancialStatementItem? = null,
+    val endCashPosition: FinancialStatementItem? = null,
+    val changeInCashSupplementalAsReported: FinancialStatementItem? = null
+)
+
+@Serializable
+internal data class IncomeStatementHistory(
+    val incomeStatementHistory: List<FinancialStatementEntry>? = null
+)
+
+@Serializable
+internal data class BalanceSheetHistory(
+    val balanceSheetStatements: List<FinancialStatementEntry>? = null
+)
+
+@Serializable
+internal data class CashflowStatementHistory(
+    val cashflowStatements: List<FinancialStatementEntry>? = null
+)
+
+// News models
+@Serializable
+internal data class NewsResponse(
+    val news: NewsData
+)
+
+@Serializable
+internal data class NewsData(
+    val result: List<NewsItem>? = null,
+    val error: ApiError? = null
+)
+
+@Serializable
+internal data class NewsItem(
+    val uuid: String,
+    val title: String,
+    val publisher: String? = null,
+    val link: String,
+    val providerPublishTime: Long,
+    val type: String? = null,
+    val thumbnail: ThumbnailInfo? = null,
+    val relatedTickers: List<String>? = null
+)
+
+@Serializable
+internal data class ThumbnailInfo(
+    val resolutions: List<ThumbnailResolution>? = null
+)
+
+@Serializable
+internal data class ThumbnailResolution(
+    val url: String,
+    val width: Int? = null,
+    val height: Int? = null,
+    val tag: String? = null
+)
+
+// Recommendations models
+@Serializable
+internal data class RecommendationTrend(
+    val trend: List<RecommendationTrendItem>? = null
+)
+
+@Serializable
+internal data class RecommendationTrendItem(
+    val period: String,
+    val strongBuy: Int? = null,
+    val buy: Int? = null,
+    val hold: Int? = null,
+    val sell: Int? = null,
+    val strongSell: Int? = null
+)
+
+@Serializable
+internal data class UpgradeDowngradeHistory(
+    val history: List<UpgradeDowngradeItem>? = null
+)
+
+@Serializable
+internal data class UpgradeDowngradeItem(
+    val epochGradeDate: Long,
+    val firm: String,
+    val toGrade: String,
+    val fromGrade: String? = null,
+    val action: String? = null
+)
+
+// Holdings models
+@Serializable
+internal data class MajorHoldersBreakdown(
+    val insidersPercentHeld: RawValue? = null,
+    val institutionsPercentHeld: RawValue? = null,
+    val institutionsFloatPercentHeld: RawValue? = null,
+    val institutionsCount: RawValue? = null
+)
+
+@Serializable
+internal data class InstitutionOwnership(
+    val ownershipList: List<InstitutionOwner>? = null
+)
+
+@Serializable
+internal data class InstitutionOwner(
+    val organization: String,
+    val pctHeld: RawValue? = null,
+    val position: RawValue? = null,
+    val value: RawValue? = null,
+    val reportDate: RawValue? = null
+)
+
+// Earnings models
+@Serializable
+internal data class EarningsHistory(
+    val history: List<EarningsHistoryItem>? = null
+)
+
+@Serializable
+internal data class EarningsHistoryItem(
+    val quarter: RawValue? = null,
+    val epsActual: RawValue? = null,
+    val epsEstimate: RawValue? = null,
+    val epsDifference: RawValue? = null,
+    val surprisePercent: RawValue? = null
+)
+
+@Serializable
+internal data class EarningsData(
+    val earningsChart: EarningsChart? = null,
+    val financialsChart: FinancialsChart? = null
+)
+
+@Serializable
+internal data class EarningsChart(
+    val quarterly: List<QuarterlyEarning>? = null,
+    val currentQuarterEstimate: RawValue? = null,
+    val currentQuarterEstimateDate: String? = null,
+    val currentQuarterEstimateYear: Int? = null
+)
+
+@Serializable
+internal data class QuarterlyEarning(
+    val date: String,
+    val actual: RawValue? = null,
+    val estimate: RawValue? = null
+)
+
+@Serializable
+internal data class FinancialsChart(
+    val yearly: List<YearlyFinancial>? = null,
+    val quarterly: List<QuarterlyFinancial>? = null
+)
+
+@Serializable
+internal data class YearlyFinancial(
+    val date: Int,
+    val revenue: RawValue? = null,
+    val earnings: RawValue? = null
+)
+
+@Serializable
+internal data class QuarterlyFinancial(
+    val date: String,
+    val revenue: RawValue? = null,
+    val earnings: RawValue? = null
+)
+
+// Options models
+@Serializable
+internal data class OptionsResponse(
+    val optionChain: OptionsChainData
+)
+
+@Serializable
+internal data class OptionsChainData(
+    val result: List<OptionsResult>? = null,
+    val error: ApiError? = null
+)
+
+@Serializable
+internal data class OptionsResult(
+    val underlyingSymbol: String,
+    val expirationDates: List<Long>? = null,
+    val strikes: List<Double>? = null,
+    val hasMiniOptions: Boolean? = null,
+    val quote: OptionQuote? = null,
+    val options: List<OptionData>? = null
+)
+
+@Serializable
+internal data class OptionQuote(
+    val regularMarketPrice: Double? = null,
+    val currency: String? = null
+)
+
+@Serializable
+internal data class OptionData(
+    val expirationDate: Long,
+    val hasMiniOptions: Boolean? = null,
+    val calls: List<OptionContractData>? = null,
+    val puts: List<OptionContractData>? = null
+)
+
+@Serializable
+internal data class OptionContractData(
+    val contractSymbol: String,
+    val strike: Double,
+    val currency: String,
+    val lastPrice: Double? = null,
+    val change: Double? = null,
+    val percentChange: Double? = null,
+    val volume: Long? = null,
+    val openInterest: Long? = null,
+    val bid: Double? = null,
+    val ask: Double? = null,
+    val contractSize: String? = null,
+    val expiration: Long,
+    val lastTradeDate: Long? = null,
+    val impliedVolatility: Double? = null,
+    val inTheMoney: Boolean? = null
+)
+
+// Sustainability/ESG models
+@Serializable
+internal data class EsgScores(
+    val totalEsg: RawValue? = null,
+    val environmentScore: RawValue? = null,
+    val socialScore: RawValue? = null,
+    val governanceScore: RawValue? = null,
+    val ratingYear: Int? = null,
+    val ratingMonth: Int? = null,
+    val highestControversy: Int? = null,
+    val peerCount: Int? = null,
+    val esgPerformance: String? = null,
+    val peerGroup: String? = null,
+    val relatedControversy: List<String>? = null,
+    val peerEsgScorePerformance: RawValue? = null,
+    val peerGovernancePerformance: RawValue? = null,
+    val peerSocialPerformance: RawValue? = null,
+    val peerEnvironmentPerformance: RawValue? = null,
+    val percentile: RawValue? = null
+)
+
+// Capital gains in Events (already have dividends and splits)
+@Serializable
+internal data class CapitalGainEvent(
+    val amount: Double,
+    val date: Long
+)
+
+// Update Events to include capital gains
+@Serializable
+internal data class EventsWithCapitalGains(
+    val dividends: Map<String, DividendEvent>? = null,
+    val splits: Map<String, SplitEvent>? = null,
+    val capitalGains: Map<String, CapitalGainEvent>? = null
 )

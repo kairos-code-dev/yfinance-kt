@@ -7,9 +7,35 @@ A Kotlin library for fetching financial data from Yahoo Finance. This is a moder
 
 ## Features
 
+### Core Data
 - 📈 **Historical Price Data** - Fetch OHLCV data for any period and interval
 - 📊 **Company Information** - Get comprehensive ticker information including fundamentals
 - 💰 **Dividends & Splits** - Access dividend and stock split history
+- 📅 **Corporate Actions** - Combined view of dividends and splits
+- 📆 **Calendar Events** - Upcoming earnings dates and dividend schedules
+
+### Financial Statements
+- 📄 **Income Statements** - Annual, quarterly, and trailing income statements
+- 💼 **Balance Sheets** - Complete balance sheet data
+- 💵 **Cash Flow Statements** - Operating, investing, and financing cash flows
+
+### Analyst Coverage & Ownership
+- 📊 **Earnings Data** - Historical earnings, EPS estimates, and actuals
+- 🎯 **Analyst Recommendations** - Upgrades, downgrades, and price targets
+- 👥 **Institutional Holdings** - Major holders and institutional ownership
+- 📰 **News Articles** - Latest news and market updates
+
+### Options & Derivatives
+- 📉 **Options Data** - Available expiration dates and option chains
+- 🎲 **Option Contracts** - Calls, puts, Greeks, and open interest
+- 💹 **Fast Info** - Quick access to key market data
+
+### ESG & Additional Data
+- 🌱 **Sustainability** - ESG scores (Environmental, Social, Governance)
+- 💵 **Capital Gains** - Distribution history for funds
+- 📊 **Shares Outstanding** - Share count over time
+
+### Technical Features
 - 🚀 **Kotlin Coroutines** - Fully async/await support with coroutines
 - 🔒 **Type-Safe** - Strongly typed data models with sealed classes for error handling
 - 🎯 **DSL-Style API** - Clean and intuitive Kotlin DSL
@@ -143,6 +169,281 @@ ticker.splits().onSuccess { splitData ->
 }
 ```
 
+### Corporate Actions (Combined Dividends & Splits)
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.actions(Period.ONE_YEAR).onSuccess { actionData ->
+    // Get all actions sorted by date
+    val allActions = actionData.getAllActions()
+
+    allActions.forEach { action ->
+        when (action) {
+            is Action.DividendAction ->
+                println("${action.getInstant()}: Dividend $${action.amount}")
+            is Action.SplitAction ->
+                println("${action.getInstant()}: Split ${action.ratio}")
+        }
+    }
+
+    // Or get them separately
+    val dividends = actionData.getDividendActions()
+    val splits = actionData.getSplitActions()
+    println("Total: ${dividends.size} dividends, ${splits.size} splits")
+}
+```
+
+### Calendar Events
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.calendar().onSuccess { calendar ->
+    if (calendar.hasEarnings()) {
+        println("Next earnings: ${calendar.getEarningsInstant()}")
+    }
+
+    if (calendar.hasDividendInfo()) {
+        println("Ex-dividend date: ${calendar.getExDividendInstant()}")
+        println("Dividend payment date: ${calendar.getDividendInstant()}")
+    }
+}
+```
+
+### History by Date Range
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get data for a specific date range
+val startTime = System.currentTimeMillis() / 1000 - (60 * 24 * 60 * 60) // 60 days ago
+val endTime = System.currentTimeMillis() / 1000
+
+ticker.historyByRange(startTime, endTime, Interval.ONE_DAY).onSuccess { data ->
+    println("Got ${data.quotes.size} quotes for the specified range")
+
+    // Helper methods for data manipulation
+    val sortedQuotes = data.getSortedQuotes() // Oldest first
+    val sortedDesc = data.getSortedQuotesDesc() // Newest first
+}
+```
+
+### Financial Statements
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get annual income statement
+ticker.incomeStatement(Frequency.ANNUAL).onSuccess { statement ->
+    val latest = statement.getLatestData()
+    if (latest != null) {
+        println("Period: ${latest.first}")
+        println("Total Revenue: ${latest.second["totalRevenue"]}")
+        println("Net Income: ${latest.second["netIncome"]}")
+        println("Gross Profit: ${latest.second["grossProfit"]}")
+    }
+}
+
+// Get quarterly balance sheet
+ticker.balanceSheet(Frequency.QUARTERLY).onSuccess { balanceSheet ->
+    val periods = balanceSheet.getAvailablePeriods()
+    println("Available periods: $periods")
+
+    // Get specific line item across all periods
+    val totalAssets = balanceSheet.getLineItem("totalAssets")
+    totalAssets.forEach { (period, value) ->
+        println("$period: Total Assets = $$value")
+    }
+}
+
+// Get cash flow statement
+ticker.cashFlow(Frequency.ANNUAL).onSuccess { cashFlow ->
+    val latest = cashFlow.getLatestData()
+    if (latest != null) {
+        println("Operating Cash Flow: ${latest.second["operatingCashFlow"]}")
+        println("Free Cash Flow: ${latest.second["freeCashFlow"]}")
+    }
+}
+```
+
+### Earnings Data
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get full earnings data
+ticker.earnings().onSuccess { earnings ->
+    println("Current Quarter Estimate: ${earnings.currentQuarterEstimate}")
+
+    // Latest quarterly earnings
+    val latest = earnings.getLatestEarnings()
+    println("Latest EPS: ${latest?.actual} (estimate: ${latest?.estimate})")
+
+    // Revenue growth year-over-year
+    val revenueGrowth = earnings.getYearlyRevenueGrowth()
+    revenueGrowth.forEach { (year, growth) ->
+        println("$year: ${String.format("%.2f", growth)}% growth")
+    }
+}
+
+// Get earnings history
+ticker.earningsHistory().onSuccess { history ->
+    val sorted = history.getSortedHistory()
+    sorted.take(4).forEach { item ->
+        val beat = if (item.beatEstimates()) "BEAT" else "MISS"
+        println("${item.quarter}: EPS ${item.epsActual} ($beat)")
+    }
+
+    println("Total beats: ${history.getBeatsCount()}")
+    println("Total misses: ${history.getMissesCount()}")
+}
+```
+
+### Analyst Recommendations & Holdings
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get analyst recommendations
+ticker.recommendations().onSuccess { recommendations ->
+    val sorted = recommendations.getSortedRecommendations()
+    sorted.take(5).forEach { rec ->
+        println("${rec.firm}: ${rec.toGrade} (${rec.action})")
+    }
+
+    val summary = recommendations.getSummary()
+    println("Recommendation summary: $summary")
+}
+
+// Get major holders
+ticker.majorHolders().onSuccess { holders ->
+    println("Insiders: ${holders.insidersPercent}%")
+    println("Institutions: ${holders.institutionsPercent}%")
+    println("Number of institutions: ${holders.institutionsCount}")
+}
+
+// Get institutional holders
+ticker.institutionalHolders().onSuccess { institutions ->
+    val topHolders = institutions.getTopHolders(10)
+    topHolders.forEach { holder ->
+        println("${holder.organization}: ${holder.percentHeld}%")
+    }
+
+    val total = institutions.getTotalPercentageHeld()
+    println("Total institutional ownership: $total%")
+}
+```
+
+### Options Data
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+// Get available option expiration dates
+ticker.options().onSuccess { expirations ->
+    println("Available expirations: ${expirations.size}")
+    expirations.take(5).forEach { exp ->
+        val date = Instant.fromEpochSeconds(exp)
+        println("  $date")
+    }
+}
+
+// Get option chain for specific expiration
+val expiration = expirations.first()
+ticker.optionChain(expiration).onSuccess { chain ->
+    println("Calls: ${chain.calls.size}, Puts: ${chain.puts.size}")
+
+    // Get all available strikes
+    val strikes = chain.getAllStrikes()
+
+    // Get in-the-money options
+    val itmCalls = chain.getInTheMoneyCall()
+    val itmPuts = chain.getInTheMoneyPuts()
+
+    // Get specific strike
+    val call = chain.getCall(150.0)
+    val put = chain.getPut(150.0)
+
+    // Analyze option contract
+    call?.let {
+        println("Call at $150:")
+        println("  Last Price: ${it.lastPrice}")
+        println("  Volume: ${it.volume}")
+        println("  Open Interest: ${it.openInterest}")
+        println("  Implied Volatility: ${it.impliedVolatility}")
+        println("  Bid-Ask Spread: ${it.getBidAskSpread()}")
+    }
+}
+```
+
+### Fast Info
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.fastInfo().onSuccess { info ->
+    println("Last Price: ${info.lastPrice}")
+    println("Market Cap: ${info.marketCap}")
+    println("Volume: ${info.volume}")
+    println("52W High/Low: ${info.fiftyTwoWeekHigh}/${info.fiftyTwoWeekLow}")
+
+    // Helper methods
+    val dayRange = info.getDayRange()
+    val priceChange = info.getPriceChange()
+    val percentChange = info.getPercentChange()
+
+    println("Day Range: ${dayRange?.first} - ${dayRange?.second}")
+    println("Change: $priceChange (${percentChange}%)")
+}
+```
+
+### Sustainability/ESG
+
+```kotlin
+val ticker = Ticker("AAPL")
+
+ticker.sustainability().onSuccess { esg ->
+    println("Total ESG Score: ${esg.totalEsg}")
+    println("Environment: ${esg.environmentScore}")
+    println("Social: ${esg.socialScore}")
+    println("Governance: ${esg.governanceScore}")
+    println("Controversy Level: ${esg.controversyLevel}")
+    println("ESG Performance: ${esg.esgPerformance}")
+
+    // Helper methods
+    println("Has High Controversy: ${esg.hasHighControversy()}")
+    println("Rating Category: ${esg.getRatingCategory()}")
+}
+```
+
+### Capital Gains & Shares
+
+```kotlin
+val ticker = Ticker("SPY")
+
+// Get capital gains distributions (for funds/ETFs)
+ticker.capitalGains().onSuccess { gains ->
+    println("Total distributions: ${gains.gains.size}")
+    gains.getSortedGains().forEach { gain ->
+        println("${gain.getInstant()}: ${gain.amount}")
+    }
+    println("Total amount: ${gains.getTotalAmount()}")
+}
+
+// Get shares outstanding
+ticker.shares().onSuccess { shares ->
+    val latest = shares.getLatestShares()
+    println("Latest shares outstanding: $latest")
+
+    // Get share growth over time
+    val growth = shares.getShareGrowth()
+    growth.forEach { (timestamp, percent) ->
+        println("${Instant.fromEpochSeconds(timestamp)}: ${percent}%")
+    }
+}
+```
+
 ### DSL-Style Usage
 
 ```kotlin
@@ -229,6 +530,11 @@ src/main/kotlin/io/github/yfinance/
 │   ├── TickerInfo.kt
 │   ├── Dividend.kt
 │   ├── Split.kt
+│   ├── Action.kt               # Corporate actions (NEW)
+│   ├── Calendar.kt             # Calendar events (NEW)
+│   ├── Financial.kt            # Financial statements (NEW)
+│   ├── News.kt                 # News articles (NEW)
+│   ├── Recommendation.kt       # Analyst recommendations (NEW)
 │   └── YFinanceResult.kt
 ├── client/                      # HTTP client
 │   ├── YFinanceClient.kt
