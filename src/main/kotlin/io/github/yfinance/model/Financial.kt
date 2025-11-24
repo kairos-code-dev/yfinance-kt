@@ -3,56 +3,53 @@ package io.github.yfinance.model
 import kotlinx.serialization.Serializable
 
 /**
+ * Financial statement frequency
+ */
+enum class Frequency(val value: String) {
+    ANNUAL("annual"),
+    QUARTERLY("quarterly"),
+    TRAILING("trailing")
+}
+
+/**
  * Represents a financial statement (income statement, balance sheet, or cash flow)
  *
  * @property symbol The ticker symbol
  * @property currency The currency of the financial data
- * @property annual Annual financial data (years as keys, line items as map)
- * @property quarterly Quarterly financial data (quarters as keys, line items as map)
+ * @property data Map of periods (dates) to line items
  */
 @Serializable
 data class FinancialStatement(
     val symbol: String,
     val currency: String? = null,
-    val annual: Map<String, Map<String, Double>> = emptyMap(),
-    val quarterly: Map<String, Map<String, Double>> = emptyMap()
+    val data: Map<String, Map<String, Long>> = emptyMap()
 ) {
     /**
-     * Get annual data for a specific year
+     * Get data for a specific period
      */
-    fun getAnnualData(year: String): Map<String, Double>? = annual[year]
+    fun getDataForPeriod(period: String): Map<String, Long>? = data[period]
 
     /**
-     * Get quarterly data for a specific quarter
+     * Get all available periods sorted
      */
-    fun getQuarterlyData(quarter: String): Map<String, Double>? = quarterly[quarter]
+    fun getAvailablePeriods(): List<String> = data.keys.sorted()
 
     /**
-     * Get all years with annual data
+     * Get a specific line item across all periods
      */
-    fun getAvailableYears(): List<String> = annual.keys.sorted()
-
-    /**
-     * Get all quarters with quarterly data
-     */
-    fun getAvailableQuarters(): List<String> = quarterly.keys.sorted()
-
-    /**
-     * Get a specific line item across all annual periods
-     */
-    fun getAnnualLineItem(itemName: String): Map<String, Double> {
-        return annual.mapNotNull { (year, items) ->
-            items[itemName]?.let { year to it }
+    fun getLineItem(itemName: String): Map<String, Long> {
+        return data.mapNotNull { (period, items) ->
+            items[itemName]?.let { period to it }
         }.toMap()
     }
 
     /**
-     * Get a specific line item across all quarterly periods
+     * Get the latest period data
      */
-    fun getQuarterlyLineItem(itemName: String): Map<String, Double> {
-        return quarterly.mapNotNull { (quarter, items) ->
-            items[quarter]?.let { quarter to it }
-        }.toMap()
+    fun getLatestData(): Pair<String, Map<String, Long>>? {
+        val latestPeriod = getAvailablePeriods().lastOrNull() ?: return null
+        val periodData = data[latestPeriod] ?: return null
+        return latestPeriod to periodData
     }
 }
 

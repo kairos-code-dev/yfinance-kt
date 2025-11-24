@@ -85,6 +85,90 @@ class Ticker(
     }
 
     /**
+     * Get income statement
+     *
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun incomeStatement(frequency: Frequency = Frequency.ANNUAL): YFinanceResult<FinancialStatement> {
+        return client.getIncomeStatement(symbol, frequency)
+    }
+
+    /**
+     * Get balance sheet
+     *
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun balanceSheet(frequency: Frequency = Frequency.ANNUAL): YFinanceResult<FinancialStatement> {
+        return client.getBalanceSheet(symbol, frequency)
+    }
+
+    /**
+     * Get cash flow statement
+     *
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun cashFlow(frequency: Frequency = Frequency.ANNUAL): YFinanceResult<FinancialStatement> {
+        return client.getCashFlow(symbol, frequency)
+    }
+
+    /**
+     * Get news articles
+     *
+     * @return Result containing news data
+     */
+    suspend fun news(): YFinanceResult<NewsData> {
+        return client.getNews(symbol)
+    }
+
+    /**
+     * Get analyst recommendations
+     *
+     * @return Result containing recommendation data
+     */
+    suspend fun recommendations(): YFinanceResult<RecommendationData> {
+        return client.getRecommendations(symbol)
+    }
+
+    /**
+     * Get major holders breakdown
+     *
+     * @return Result containing major holders data
+     */
+    suspend fun majorHolders(): YFinanceResult<MajorHolders> {
+        return client.getMajorHolders(symbol)
+    }
+
+    /**
+     * Get institutional holders
+     *
+     * @return Result containing institutional holders data
+     */
+    suspend fun institutionalHolders(): YFinanceResult<InstitutionalHoldersData> {
+        return client.getInstitutionalHolders(symbol)
+    }
+
+    /**
+     * Get earnings history
+     *
+     * @return Result containing earnings history data
+     */
+    suspend fun earningsHistory(): YFinanceResult<EarningsHistoryData> {
+        return client.getEarningsHistory(symbol)
+    }
+
+    /**
+     * Get full earnings data
+     *
+     * @return Result containing full earnings data
+     */
+    suspend fun earnings(): YFinanceResult<FullEarningsData> {
+        return client.getEarnings(symbol)
+    }
+
+    /**
      * Extension function to get history with custom date range
      * This is a convenience method that uses the max period and filters the results
      *

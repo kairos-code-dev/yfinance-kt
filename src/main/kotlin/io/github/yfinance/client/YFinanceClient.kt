@@ -359,18 +359,22 @@ class YFinanceClient(
                 "&includeAdjustedClose=true"
     }
 
-    private fun buildQuoteSummaryUrl(symbol: String): String {
-        val modules = listOf(
+    private fun buildQuoteSummaryUrl(symbol: String, modules: List<String>? = null): String {
+        val defaultModules = modules ?: listOf(
             "assetProfile",
             "price",
             "summaryDetail",
             "defaultKeyStatistics",
             "financialData",
             "calendarEvents"
-        ).joinToString(",")
+        )
 
         return "https://query2.finance.yahoo.com/v10/finance/quoteSummary/$symbol" +
-                "?modules=$modules"
+                "?modules=${defaultModules.joinToString(",")}"
+    }
+
+    private fun buildFinancialsUrl(symbol: String, modules: List<String>): String {
+        return buildQuoteSummaryUrl(symbol, modules)
     }
 
     private fun parseHistoricalData(result: ChartResult): HistoricalData {
@@ -535,6 +539,543 @@ class YFinanceClient(
             revenueGrowth = financial?.revenueGrowth?.raw,
             earningsGrowth = financial?.earningsGrowth?.raw
         )
+    }
+
+    /**
+     * Fetch income statement (financials)
+     *
+     * @param symbol The ticker symbol
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun getIncomeStatement(
+        symbol: String,
+        frequency: Frequency = Frequency.ANNUAL
+    ): YFinanceResult<FinancialStatement> {
+        return getFinancialStatement(symbol, "incomeStatement", frequency)
+    }
+
+    /**
+     * Fetch balance sheet
+     *
+     * @param symbol The ticker symbol
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun getBalanceSheet(
+        symbol: String,
+        frequency: Frequency = Frequency.ANNUAL
+    ): YFinanceResult<FinancialStatement> {
+        return getFinancialStatement(symbol, "balanceSheet", frequency)
+    }
+
+    /**
+     * Fetch cash flow statement
+     *
+     * @param symbol The ticker symbol
+     * @param frequency The frequency (annual, quarterly, or trailing)
+     * @return Result containing financial statement
+     */
+    suspend fun getCashFlow(
+        symbol: String,
+        frequency: Frequency = Frequency.ANNUAL
+    ): YFinanceResult<FinancialStatement> {
+        return getFinancialStatement(symbol, "cashflowStatement", frequency)
+    }
+
+    private suspend fun getFinancialStatement(
+        symbol: String,
+        statementType: String,
+        frequency: Frequency
+    ): YFinanceResult<FinancialStatement> {
+        return try {
+            val moduleKey = when (frequency) {
+                Frequency.ANNUAL -> "${statementType}History"
+                Frequency.QUARTERLY -> "${statementType}HistoryQuarterly"
+                Frequency.TRAILING -> "${statementType}History"  // Use annual for trailing
+            }
+
+            val url = buildFinancialsUrl(symbol, listOf(moduleKey))
+            logger.debug { "Fetching financial statement: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            YFinanceResult.Success(parseFinancialStatement(symbol, result, statementType, frequency))
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching financial statement for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch financial statement: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    private fun parseFinancialStatement(
+        symbol: String,
+        result: QuoteSummaryResult,
+        statementType: String,
+        frequency: Frequency
+    ): FinancialStatement {
+        val statements = when (statementType) {
+            "incomeStatement" -> {
+                if (frequency == Frequency.QUARTERLY) {
+                    result.incomeStatementHistoryQuarterly?.incomeStatementHistory
+                } else {
+                    result.incomeStatementHistory?.incomeStatementHistory
+                }
+            }
+            "balanceSheet" -> {
+                if (frequency == Frequency.QUARTERLY) {
+                    result.balanceSheetHistoryQuarterly?.balanceSheetStatements
+                } else {
+                    result.balanceSheetHistory?.balanceSheetStatements
+                }
+            }
+            "cashflowStatement" -> {
+                if (frequency == Frequency.QUARTERLY) {
+                    result.cashflowStatementHistoryQuarterly?.cashflowStatements
+                } else {
+                    result.cashflowStatementHistory?.cashflowStatements
+                }
+            }
+            else -> emptyList()
+        } ?: emptyList()
+
+        val data = statements.associate { entry ->
+            val date = entry.endDate?.fmt ?: entry.endDate?.raw?.toLong()?.toString() ?: "Unknown"
+            val lineItems = mutableMapOf<String, Long>()
+
+            // Add all non-null items
+            entry.totalRevenue?.raw?.let { lineItems["totalRevenue"] = it }
+            entry.costOfRevenue?.raw?.let { lineItems["costOfRevenue"] = it }
+            entry.grossProfit?.raw?.let { lineItems["grossProfit"] = it }
+            entry.operatingExpense?.raw?.let { lineItems["operatingExpense"] = it }
+            entry.operatingIncome?.raw?.let { lineItems["operatingIncome"] = it }
+            entry.netIncome?.raw?.let { lineItems["netIncome"] = it }
+            entry.ebitda?.raw?.let { lineItems["ebitda"] = it }
+            entry.totalAssets?.raw?.let { lineItems["totalAssets"] = it }
+            entry.totalLiabilitiesNetMinorityInterest?.raw?.let { lineItems["totalLiabilities"] = it }
+            entry.stockholdersEquity?.raw?.let { lineItems["stockholdersEquity"] = it }
+            entry.totalDebt?.raw?.let { lineItems["totalDebt"] = it }
+            entry.currentAssets?.raw?.let { lineItems["currentAssets"] = it }
+            entry.currentLiabilities?.raw?.let { lineItems["currentLiabilities"] = it }
+            entry.cashAndCashEquivalents?.raw?.let { lineItems["cash"] = it }
+            entry.operatingCashFlow?.raw?.let { lineItems["operatingCashFlow"] = it }
+            entry.investingCashFlow?.raw?.let { lineItems["investingCashFlow"] = it }
+            entry.financingCashFlow?.raw?.let { lineItems["financingCashFlow"] = it }
+            entry.freeCashFlow?.raw?.let { lineItems["freeCashFlow"] = it }
+            entry.capitalExpenditure?.raw?.let { lineItems["capitalExpenditure"] = it }
+
+            date to lineItems
+        }
+
+        return FinancialStatement(
+            symbol = symbol,
+            data = data
+        )
+    }
+
+    /**
+     * Fetch news articles
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing news data
+     */
+    suspend fun getNews(symbol: String): YFinanceResult<NewsData> {
+        return try {
+            val url = "https://query2.finance.yahoo.com/v1/finance/search?q=$symbol"
+            logger.debug { "Fetching news: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            // Parse news from search results
+            val articles = emptyList<NewsArticle>()  // Placeholder - actual implementation would parse response
+
+            YFinanceResult.Success(
+                NewsData(
+                    symbol = symbol,
+                    articles = articles
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching news for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch news: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch recommendations
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing recommendation data
+     */
+    suspend fun getRecommendations(symbol: String): YFinanceResult<RecommendationData> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("upgradeDowngradeHistory"))
+            logger.debug { "Fetching recommendations: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val history = result.upgradeDowngradeHistory?.history ?: emptyList()
+            val recommendations = history.map { item ->
+                Recommendation(
+                    date = item.epochGradeDate,
+                    firm = item.firm,
+                    toGrade = item.toGrade,
+                    fromGrade = item.fromGrade,
+                    action = item.action
+                )
+            }
+
+            YFinanceResult.Success(
+                RecommendationData(
+                    symbol = symbol,
+                    recommendations = recommendations
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching recommendations for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch recommendations: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch major holders
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing major holders data
+     */
+    suspend fun getMajorHolders(symbol: String): YFinanceResult<MajorHolders> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("majorHoldersBreakdown"))
+            logger.debug { "Fetching major holders: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val breakdown = result.majorHoldersBreakdown
+
+            YFinanceResult.Success(
+                MajorHolders(
+                    symbol = symbol,
+                    insidersPercent = breakdown?.insidersPercentHeld?.raw,
+                    institutionsPercent = breakdown?.institutionsPercentHeld?.raw,
+                    institutionsFloatPercent = breakdown?.institutionsFloatPercentHeld?.raw,
+                    institutionsCount = breakdown?.institutionsCount?.raw?.toLong()
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching major holders for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch major holders: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch institutional holders
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing institutional holders data
+     */
+    suspend fun getInstitutionalHolders(symbol: String): YFinanceResult<InstitutionalHoldersData> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("institutionOwnership"))
+            logger.debug { "Fetching institutional holders: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val ownershipList = result.institutionOwnership?.ownershipList ?: emptyList()
+            val holders = ownershipList.map { owner ->
+                InstitutionalHolder(
+                    organization = owner.organization,
+                    percentHeld = owner.pctHeld?.raw,
+                    shares = owner.position?.raw?.toLong(),
+                    value = owner.value?.raw?.toLong(),
+                    reportDate = owner.reportDate?.raw?.toLong()
+                )
+            }
+
+            YFinanceResult.Success(
+                InstitutionalHoldersData(
+                    symbol = symbol,
+                    holders = holders
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching institutional holders for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch institutional holders: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch earnings history
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing earnings history data
+     */
+    suspend fun getEarningsHistory(symbol: String): YFinanceResult<EarningsHistoryData> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("earningsHistory"))
+            logger.debug { "Fetching earnings history: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val history = result.earningsHistory?.history ?: emptyList()
+            val items = history.map { item ->
+                EarningsHistoryItem(
+                    quarter = item.quarter?.fmt ?: "",
+                    epsActual = item.epsActual?.raw,
+                    epsEstimate = item.epsEstimate?.raw,
+                    epsDifference = item.epsDifference?.raw,
+                    surprisePercent = item.surprisePercent?.raw
+                )
+            }
+
+            YFinanceResult.Success(
+                EarningsHistoryData(
+                    symbol = symbol,
+                    history = items
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching earnings history for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch earnings history: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
+    }
+
+    /**
+     * Fetch full earnings data
+     *
+     * @param symbol The ticker symbol
+     * @return Result containing full earnings data
+     */
+    suspend fun getEarnings(symbol: String): YFinanceResult<FullEarningsData> {
+        return try {
+            val url = buildFinancialsUrl(symbol, listOf("earnings"))
+            logger.debug { "Fetching earnings: $url" }
+
+            val response: HttpResponse = client.get(url)
+
+            if (!response.status.isSuccess()) {
+                return YFinanceResult.Error(
+                    "HTTP ${response.status.value}: ${response.status.description}",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val quoteSummaryResponse: QuoteSummaryResponse = response.body()
+
+            if (quoteSummaryResponse.quoteSummary.error != null) {
+                return YFinanceResult.Error(
+                    quoteSummaryResponse.quoteSummary.error.description ?: "Unknown API error",
+                    errorType = YFinanceResult.Error.ErrorType.API_ERROR
+                )
+            }
+
+            val result = quoteSummaryResponse.quoteSummary.result?.firstOrNull()
+                ?: return YFinanceResult.Error(
+                    "No data returned for symbol: $symbol",
+                    errorType = YFinanceResult.Error.ErrorType.INVALID_SYMBOL
+                )
+
+            val earningsData = result.earnings
+            val quarterlyEarnings = earningsData?.earningsChart?.quarterly?.map { q ->
+                QuarterlyEarningsData(
+                    date = q.date,
+                    actual = q.actual?.raw,
+                    estimate = q.estimate?.raw
+                )
+            } ?: emptyList()
+
+            val yearlyRevenue = earningsData?.financialsChart?.yearly?.associate { y ->
+                y.date to (y.revenue?.raw?.toLong() ?: 0L)
+            } ?: emptyMap()
+
+            val quarterlyRevenue = earningsData?.financialsChart?.quarterly?.associate { q ->
+                q.date to (q.revenue?.raw?.toLong() ?: 0L)
+            } ?: emptyMap()
+
+            YFinanceResult.Success(
+                FullEarningsData(
+                    symbol = symbol,
+                    quarterlyEarnings = quarterlyEarnings,
+                    currentQuarterEstimate = earningsData?.earningsChart?.currentQuarterEstimate?.raw,
+                    yearlyRevenue = yearlyRevenue,
+                    quarterlyRevenue = quarterlyRevenue
+                )
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching earnings for $symbol" }
+            YFinanceResult.Error(
+                "Failed to fetch earnings: ${e.message}",
+                cause = e,
+                errorType = when (e) {
+                    is HttpRequestTimeoutException -> YFinanceResult.Error.ErrorType.NETWORK_ERROR
+                    else -> YFinanceResult.Error.ErrorType.UNKNOWN
+                }
+            )
+        }
     }
 
     /**
