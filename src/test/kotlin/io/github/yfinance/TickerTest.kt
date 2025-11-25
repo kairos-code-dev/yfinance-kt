@@ -1,5 +1,6 @@
 package io.github.yfinance
 
+import io.github.yfinance.model.Frequency
 import io.github.yfinance.model.Interval
 import io.github.yfinance.model.Period
 import io.github.yfinance.model.YFinanceResult
